@@ -5,68 +5,102 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 // gh issue list --state all --limit 20000 --json number,createdAt,closed,url,closedAt,id,labels,milestone,state,title,assignees > issues.json
-ReadIssuesJson();
+// ReadIssuesJson();
 
 using (var context = new IssuesContext())
 {
-    RateOfClose();
-    // ListMilestones();
+    PatchedFor(1, 0);
+    PatchedFor(1, 1);
+    PatchedFor(2, 0);
+    PatchedFor(2, 1);
+    PatchedFor(2, 2);
+    PatchedFor(3, 0);
+    PatchedFor(3, 1);
+    PatchedFor(5, 0);
+    PatchedFor(6, 0);
+    // PatchedIssues();
+    // BugsOpenAndClosed();
+    // BugsOpened();
+    // Bugs fixed in a patch release
+    // Time to fix
     
-    // Console.WriteLine($"Issue count: {context.Issues.Count(issue => issue.State == IssueState.Fixed)}");
-    // ListPeople();
-    // ListLabels();
-    // ListMilestones();
-    
-    // ListFixedIssues("smitpatel", 6, "type-enhancement", new DateTime(2021, 11, 1));
-    // ListFixedIssues("ajcvickers", 6, "type-enhancement", new DateTime(2021, 11, 1));
-    // ListFixedIssues("roji", 6, "type-enhancement", new DateTime(2021, 11, 1));
-    // ListFixedIssues("bricelam", 6, "type-enhancement", new DateTime(2021, 11, 1));
-    // ListFixedIssues("maumar", 6, "type-enhancement", new DateTime(2021, 11, 1));
-    // ListFixedIssues("smitpatel", 6, "type-bug", new DateTime(2021, 11, 1));
-    // ListFixedIssues("ajcvickers", 6, "type-bug", new DateTime(2021, 11, 1));
-    // ListFixedIssues("roji", 6, "type-bug", new DateTime(2021, 11, 1));
-    // ListFixedIssues("bricelam", 6, "type-bug", new DateTime(2021, 11, 1));
-    // ListFixedIssues("maumar", 6, "type-bug", new DateTime(2021, 11, 1));
-
-    void RateOfClose()
+    void BugsOpenAndClosed()
     {
         var issues = context.Issues
-            .Where(i => 
-                // i.State == IssueState.Fixed
-                //         && 
-                        i.Labels.Any(l => l.Name == "type-bug"))
+            .Include(i => i.Milestone)
+            .Where(i => i.Labels.Any(l => l.Name == "type-bug") && (i.Milestone != null))
             .OrderBy(i => i.CreatedOn)
             .ToList();
-
-        // var i = 0;
-        // var date = new DateOnly(2014, 1, 1);
-        // while (date < new DateOnly(2022, 10, 1))
-        // {
-        //     while (DateOnly.FromDateTime(issues[i++].ClosedOn!.Value) < date)
-        //     {
-        //         
-        //     }
-        //     date = date.AddMonths(1);
-        // }
-
-        var count = 0;
+        
+        Console.WriteLine(issues.Count);
+        
         var date = new DateTime(2014, 5, 1);
+        while (date < DateTime.Today.AddDays(7))
+        {
+            var openCount = 0;
+            var closedCount = 0;
+            foreach (var issue in issues)
+            {
+                if (issue.CreatedOn <= date)
+                {
+                    if (issue.ClosedOn != null && issue.ClosedOn < date)
+                    {
+                        closedCount++;
+                    }
+                    else
+                    {
+                        openCount++;
+                    }
+                }
+            }
+
+            Console.WriteLine($"{date:d},{openCount},{closedCount}");
+            date = date.AddDays(7);
+        }
+    }
+
+    void BugsOpened()
+    {
+        var issues = context.Issues
+            .Include(i => i.Milestone)
+            .Where(i => i.Labels.Any(l => l.Name == "type-bug") && i.Milestone != null)
+            .OrderBy(i => i.CreatedOn)
+            .ToList();
+        
+        Console.WriteLine(issues.Count);
+
+        var date = new DateTime(2014, 5, 1);
+        while (date < DateTime.Today.AddDays(7))
+        {
+            var backTo = date.AddMonths(-1);
+            var openCount = 0;
+            foreach (var issue in issues)
+            {
+                if (issue.CreatedOn > backTo && issue.CreatedOn <= date)
+                {
+                    openCount++;
+                }
+            }
+
+            Console.WriteLine($"{backTo:d},{openCount}");
+            date = date.AddDays(7);
+        }
+    }
+    
+    void TooManyTypes()
+    {
+        var issues = context.Issues
+            .Include(i => i.Labels)
+            .Where(i => 
+                !i.Labels.Any(l => l.Name == "closed-fixed") &&
+                i.Labels.Count(l => l.Name.StartsWith("closed-")) > 1)
+            //.OrderBy(i => i.CreatedOn)
+            .ToList();
+
         foreach (var issue in issues)
         {
-            if (issue.CreatedOn < date)
-            {
-                count++;
-            }
-            else
-            {
-                Console.WriteLine($"{date.AddMonths(-1):d},{count}");
-                date = date.AddMonths(1);
-                count = 0;
-            }
-            
-            // Console.WriteLine($"gh issue reopen {issue.Id}");
-            // Console.WriteLine($"gh issue close {issue.Id} --reason \"not planned\"");
-            // Console.WriteLine($"\"#{issue.Id}\", {issue.CreatedOn:d}, {issue.ClosedOn:d}, \"{issue.Title}\"");
+            //Console.WriteLine($"\"#{issue.Id}\", {string.Join(", ", issue.Labels.Select(l => l.Name))} \"{issue.Title}\"");
+            Console.WriteLine(issue.Url);
         }
         
         Console.WriteLine();
@@ -90,23 +124,58 @@ using (var context = new IssuesContext())
                 i.Title
             }).ToList();
 
+        // for (var i = 0; i < 1600; i++)
+        // {
+        //     Console.WriteLine($"{i}, {issues.Count(issue => issue.ClosedIn == i)}");
+        //     // Console.WriteLine($"\"{bucket - 5} to {bucket} days\", {issues.Count(i => i.ClosedIn < bucket && i.ClosedIn >= bucket - 5)}");
+        // }
         for (int bucket = 7; bucket < 1600; bucket += 7)
         {
             Console.WriteLine($"{bucket/7}, {issues.Count(i => i.ClosedIn < bucket && i.ClosedIn >= bucket - 7)}");
             // Console.WriteLine($"\"{bucket - 5} to {bucket} days\", {issues.Count(i => i.ClosedIn < bucket && i.ClosedIn >= bucket - 5)}");
         }
-        // foreach (var issue in issues.OrderBy(i => i.ClosedIn))
-        // {
-        //     // Console.WriteLine($"gh issue reopen {issue.Id}");
-        //     // Console.WriteLine($"gh issue close {issue.Id} --reason \"not planned\"");
-        //     Console.WriteLine($"{issue.Id}, {issue.CreatedOn:d}, {issue.ClosedOn:d}, {issue.ClosedIn}, \"{issue.Title}\"");
-        // }
-        //
-        // Console.WriteLine();
-        //
-        // Console.WriteLine($"Total = {context.Issues.Local.Count}");
+    }
+    
+    void PatchedIssues()
+    {
+        var issues = context.Issues
+            .Where(i => i.State == IssueState.Fixed
+                        && i.Milestone.Patch != null
+                        && i.Milestone.Patch != 0
+                        && i.Labels.Any(l => l.Name == "type-bug"))
+            .ToList();
 
-        Console.WriteLine();
+        var date = new DateTime(2014, 5, 1);
+        while (date < DateTime.Today.AddMonths(1))
+        {
+            var backTo = date.AddMonths(-1);
+            var openCount = 0;
+            foreach (var issue in issues)
+            {
+                if (issue.ClosedOn > backTo && issue.ClosedOn <= date)
+                {
+                    openCount++;
+                }
+            }
+
+            Console.WriteLine($"{backTo:d},{openCount}");
+            date = date.AddMonths(1);
+        }
+
+    }
+
+    void PatchedFor(int major, int minor)
+    {
+        Console.WriteLine($"{major}.{minor}, {context.Issues
+            .Count(i => i.State == IssueState.Fixed 
+                        && i.Milestone!.Major == major
+                        && i.Milestone!.Minor == minor
+                        && i.Milestone!.Patch != 0)}");
+        // Console.WriteLine($"{context.Issues
+        //     .Count(i => i.State == IssueState.Fixed 
+        //                 && i.Milestone!.Major == major
+        //                 && i.Milestone!.Minor == minor
+        //                 && i.Milestone!.Patch != 0)} Patched for {major}.{minor}");
     }
 
     void NoClosedLabel()
@@ -160,45 +229,38 @@ using (var context = new IssuesContext())
         var average = intervals.Select(i => i.TotalDays).Average();
 
         Console.WriteLine($"Average is {average}");
-        
-        // Console.WriteLine();
     }
 
-    // ListIssues(IssueState.Open);
-    // ListIssues(IssueState.Resolved);
-    // ListIssues(IssueState.Fixed);
-    // ListIssues(IssueState.Closed);
-
-    // void ListIssues(IssueState state)
-    // {
-    //     Console.WriteLine($"{state} issues:");
-    //     foreach (var issue in context.Issues.Include(issue => issue.Milestone).Where(issue => issue.State == state))
-    //     {
-    //         var milestone = issue.Milestone != null ? $"({issue.Milestone}) " : "";
-    //         Console.WriteLine($"  {milestone}{issue}");
-    //     }
-    //     Console.WriteLine();
-    // }
-    //
-    // void ListLabels()
-    // {
-    //     Console.WriteLine("Labels:");
-    //     foreach (var label in context.Labels)
-    //     {
-    //         Console.WriteLine($"  {label}");
-    //     }
-    //     Console.WriteLine();
-    // }
-    //
-    // void ListPeople()
-    // {
-    //     Console.WriteLine($"People:");
-    //     foreach (var person in context.People)
-    //     {
-    //         Console.WriteLine($"  {person}");
-    //     }
-    //     Console.WriteLine();
-    // }
+    void ListIssues(IssueState state)
+    {
+        Console.WriteLine($"{state} issues:");
+        foreach (var issue in context.Issues.Include(issue => issue.Milestone).Where(issue => issue.State == state))
+        {
+            var milestone = issue.Milestone != null ? $"({issue.Milestone}) " : "";
+            Console.WriteLine($"  {milestone}{issue}");
+        }
+        Console.WriteLine();
+    }
+    
+    void ListLabels()
+    {
+        Console.WriteLine("Labels:");
+        foreach (var label in context.Labels)
+        {
+            Console.WriteLine($"  {label}");
+        }
+        Console.WriteLine();
+    }
+    
+    void ListPeople()
+    {
+        Console.WriteLine($"People:");
+        foreach (var person in context.People)
+        {
+            Console.WriteLine($"  {person}");
+        }
+        Console.WriteLine();
+    }
     
     void ListMilestones()
     {
@@ -315,7 +377,7 @@ public class Issue
     public int Id { get; init; }
     public IssueState State { get; set; }
     public DateTime CreatedOn { get; init; }
-    public DateTime? ClosedOn { get; init; }
+    public DateTime? ClosedOn { get; set; }
     public string Title { get; init; }
     public Uri Url { get; init; }
 
